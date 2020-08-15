@@ -72,6 +72,7 @@ import org.springframework.core.env.PropertySource;
 import org.springframework.core.env.SimpleCommandLinePropertySource;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.DefaultResourceLoader;
+import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.io.support.SpringFactoriesLoader;
 import org.springframework.util.Assert;
@@ -219,13 +220,13 @@ public class SpringApplication {
 
 	private Class<? extends ConfigurableApplicationContext> applicationContextClass;
 
-	private WebApplicationType webApplicationType;
+	private WebApplicationType webApplicationType;//web应用程序类型 REACTIVE/NONE/SERVLET
 
 	private boolean headless = true;
 
 	private boolean registerShutdownHook = true;
 
-	private List<ApplicationContextInitializer<?>> initializers;
+	private List<ApplicationContextInitializer<?>> initializers;//应用程序上下文初始器
 
 	private List<ApplicationListener<?>> listeners;
 
@@ -268,8 +269,39 @@ public class SpringApplication {
 		this.resourceLoader = resourceLoader;
 		Assert.notNull(primarySources, "PrimarySources must not be null");
 		this.primarySources = new LinkedHashSet<>(Arrays.asList(primarySources));
+		/**
+		 * 推断应用程序类型(根据类路径扫描包判定类型)
+		 * {@link WebApplicationType}
+		 * {@linkplain ClassUtils#isPresent(String,ClassLoader)}
+		 */
 		this.webApplicationType = WebApplicationType.deduceFromClasspath();
+		/**
+		 * 设置应用程序上下文初始器
+		 * @see #setInitializers(Collection)
+		 *
+		 * {@link org.springframework.boot.autoconfigure.SharedMetadataReaderFactoryContextInitializer}
+		 * {@link org.springframework.boot.autoconfigure.logging.ConditionEvaluationReportLoggingListener}
+		 * {@link org.springframework.boot.context.ConfigurationWarningsApplicationContextInitializer}
+		 * {@link org.springframework.boot.context.ContextIdApplicationContextInitializer}
+		 * {@link org.springframework.boot.context.config.DelegatingApplicationContextInitializer}
+		 * {@link org.springframework.boot.rsocket.context.RSocketPortInfoApplicationContextInitializer}
+		 * {@link org.springframework.boot.web.context.ServerPortInfoApplicationContextInitializer}
+		 */
 		setInitializers((Collection) getSpringFactoriesInstances(ApplicationContextInitializer.class));
+		/**
+		 *
+		 * org.springframework.boot.autoconfigure.BackgroundPreinitializer
+		 * org.springframework.boot.ClearCachesApplicationListener
+		 * org.springframework.boot.builder.ParentContextCloserApplicationListener
+		 * org.springframework.boot.cloud.CloudFoundryVcapEnvironmentPostProcessor
+		 * org.springframework.boot.context.FileEncodingApplicationListener
+		 * org.springframework.boot.context.config.AnsiOutputApplicationListener
+		 * org.springframework.boot.context.config.ConfigFileApplicationListener
+		 * org.springframework.boot.context.config.DelegatingApplicationListener
+		 * org.springframework.boot.context.logging.ClasspathLoggingApplicationListener
+		 * org.springframework.boot.context.logging.LoggingApplicationListener
+		 * org.springframework.boot.liquibase.LiquibaseServiceLocatorApplicationListener
+		 */
 		setListeners((Collection) getSpringFactoriesInstances(ApplicationListener.class));
 		this.mainApplicationClass = deduceMainApplicationClass();
 	}
@@ -416,14 +448,32 @@ public class SpringApplication {
 				getSpringFactoriesInstances(SpringApplicationRunListener.class, types, this, args));
 	}
 
+	/**
+	 * 获取spring工厂实例
+	 * @param type 实例Class类型
+	 */
 	private <T> Collection<T> getSpringFactoriesInstances(Class<T> type) {
 		return getSpringFactoriesInstances(type, new Class<?>[] {});
 	}
 
 	private <T> Collection<T> getSpringFactoriesInstances(Class<T> type, Class<?>[] parameterTypes, Object... args) {
+		/**
+		 * 获取类加载器
+		 * @see #getClassLoader()
+		 * {@linkplain ClassUtils#getDefaultClassLoader()}
+		 */
 		ClassLoader classLoader = getClassLoader();
 		// Use names and ensure unique to protect against duplicates
+		/**
+		 * 通过java技术获取类路径下所有META-INF/spring.factories下指定类型的实现的全限定名称
+		 * {@link SpringFactoriesLoader#loadFactoryNames(Class, ClassLoader)}
+		 * {@linkplain org.springframework.core.io.support.PropertiesLoaderUtils#loadProperties(Resource)}
+		 *
+		 */
 		Set<String> names = new LinkedHashSet<>(SpringFactoriesLoader.loadFactoryNames(type, classLoader));
+		/**
+		 *
+		 */
 		List<T> instances = createSpringFactoriesInstances(type, parameterTypes, classLoader, args, names);
 		AnnotationAwareOrderComparator.sort(instances);
 		return instances;
