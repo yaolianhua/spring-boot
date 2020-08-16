@@ -228,7 +228,7 @@ public class SpringApplication {
 
 	private List<ApplicationContextInitializer<?>> initializers;//应用程序上下文初始器
 
-	private List<ApplicationListener<?>> listeners;
+	private List<ApplicationListener<?>> listeners;//应用程序监听器
 
 	private Map<String, Object> defaultProperties;
 
@@ -277,6 +277,7 @@ public class SpringApplication {
 		this.webApplicationType = WebApplicationType.deduceFromClasspath();
 		/**
 		 * 设置应用程序上下文初始器
+		 * {@link ApplicationContextInitializer}
 		 * @see #setInitializers(Collection)
 		 *
 		 * {@link org.springframework.boot.autoconfigure.SharedMetadataReaderFactoryContextInitializer}
@@ -289,20 +290,27 @@ public class SpringApplication {
 		 */
 		setInitializers((Collection) getSpringFactoriesInstances(ApplicationContextInitializer.class));
 		/**
+		 * 设置应用程序初始监听器
+		 * {@link ApplicationListener}
+		 * @see #setListeners(Collection)
 		 *
-		 * org.springframework.boot.autoconfigure.BackgroundPreinitializer
-		 * org.springframework.boot.ClearCachesApplicationListener
-		 * org.springframework.boot.builder.ParentContextCloserApplicationListener
-		 * org.springframework.boot.cloud.CloudFoundryVcapEnvironmentPostProcessor
-		 * org.springframework.boot.context.FileEncodingApplicationListener
-		 * org.springframework.boot.context.config.AnsiOutputApplicationListener
-		 * org.springframework.boot.context.config.ConfigFileApplicationListener
-		 * org.springframework.boot.context.config.DelegatingApplicationListener
-		 * org.springframework.boot.context.logging.ClasspathLoggingApplicationListener
-		 * org.springframework.boot.context.logging.LoggingApplicationListener
-		 * org.springframework.boot.liquibase.LiquibaseServiceLocatorApplicationListener
+		 * {@link org.springframework.boot.autoconfigure.BackgroundPreinitializer}
+		 * {@link org.springframework.boot.ClearCachesApplicationListener}
+		 * {@link org.springframework.boot.builder.ParentContextCloserApplicationListener}
+		 * {@link org.springframework.boot.cloud.CloudFoundryVcapEnvironmentPostProcessor}
+		 * {@link org.springframework.boot.context.FileEncodingApplicationListener}
+		 * {@link org.springframework.boot.context.config.AnsiOutputApplicationListener}
+		 * {@link org.springframework.boot.context.config.ConfigFileApplicationListener}
+		 * {@link org.springframework.boot.context.config.DelegatingApplicationListener}
+		 * {@link org.springframework.boot.context.logging.ClasspathLoggingApplicationListener}
+		 * {@link org.springframework.boot.context.logging.LoggingApplicationListener}
+		 * {@link org.springframework.boot.liquibase.LiquibaseServiceLocatorApplicationListener}
 		 */
 		setListeners((Collection) getSpringFactoriesInstances(ApplicationListener.class));
+		/**
+		 * 推断执行main方法的主类Class类型(通过运行时异常栈信息反推)
+		 * @see #deduceMainApplicationClass()
+		 */
 		this.mainApplicationClass = deduceMainApplicationClass();
 	}
 
@@ -328,10 +336,23 @@ public class SpringApplication {
 	 * @return a running {@link ApplicationContext}
 	 */
 	public ConfigurableApplicationContext run(String... args) {
+		//构造一个StopWatch(秒表)
 		StopWatch stopWatch = new StopWatch();
+		/**
+		 * 启动一个未命名任务
+		 * {@link StopWatch#start(String)}
+		 */
 		stopWatch.start();
+		/**
+		 * 声明应用程序上下文对象(该方法返回对象)
+		 * {@link ApplicationContext}
+		 */
 		ConfigurableApplicationContext context = null;
 		Collection<SpringBootExceptionReporter> exceptionReporters = new ArrayList<>();
+		/**
+		 * 配置Java.awt(图形组件)属性
+		 * @see #configureHeadlessProperty()
+		 */
 		configureHeadlessProperty();
 		SpringApplicationRunListeners listeners = getRunListeners(args);
 		listeners.starting();
@@ -472,9 +493,15 @@ public class SpringApplication {
 		 */
 		Set<String> names = new LinkedHashSet<>(SpringFactoriesLoader.loadFactoryNames(type, classLoader));
 		/**
-		 *
+		 * 通过Java反射技术创建Spring工厂实例(构造器创建对象实例)
+		 * @see ClassUtils#forName(String, ClassLoader)
+		 * @see BeanUtils#instantiateClass(Constructor, Object...)
 		 */
 		List<T> instances = createSpringFactoriesInstances(type, parameterTypes, classLoader, args, names);
+		/**
+		 * 排序
+		 * @see AnnotationAwareOrderComparator#sort(List)
+		 */
 		AnnotationAwareOrderComparator.sort(instances);
 		return instances;
 	}
@@ -483,6 +510,9 @@ public class SpringApplication {
 	private <T> List<T> createSpringFactoriesInstances(Class<T> type, Class<?>[] parameterTypes,
 			ClassLoader classLoader, Object[] args, Set<String> names) {
 		List<T> instances = new ArrayList<>(names.size());
+		/**
+		 * @param names 待创建实例的全限定名
+		 */
 		for (String name : names) {
 			try {
 				Class<?> instanceClass = ClassUtils.forName(name, classLoader);
