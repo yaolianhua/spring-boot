@@ -43,15 +43,14 @@ import org.springframework.beans.factory.support.BeanNameGenerator;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.beans.factory.xml.XmlBeanDefinitionReader;
 import org.springframework.boot.Banner.Mode;
+import org.springframework.boot.context.event.ApplicationStartingEvent;
+import org.springframework.boot.context.event.SpringApplicationEvent;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
 import org.springframework.boot.convert.ApplicationConversionService;
 import org.springframework.boot.web.reactive.context.StandardReactiveWebEnvironment;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationContextInitializer;
-import org.springframework.context.ApplicationListener;
-import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.*;
 import org.springframework.context.annotation.AnnotatedBeanDefinitionReader;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigUtils;
@@ -59,6 +58,7 @@ import org.springframework.context.annotation.ClassPathBeanDefinitionScanner;
 import org.springframework.context.support.AbstractApplicationContext;
 import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.core.GenericTypeResolver;
+import org.springframework.core.ResolvableType;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.support.ConfigurableConversionService;
@@ -344,7 +344,7 @@ public class SpringApplication {
 		 */
 		stopWatch.start();
 		/**
-		 * 声明应用程序上下文对象(该方法返回对象)
+		 * 声明应用程序上下文对象(run方法返回对象)
 		 * {@link ApplicationContext}
 		 */
 		ConfigurableApplicationContext context = null;
@@ -354,7 +354,32 @@ public class SpringApplication {
 		 * @see #configureHeadlessProperty()
 		 */
 		configureHeadlessProperty();
+		/**
+		 * 获取 {@link SpringApplicationRunListener} 集合
+		 *
+		 * 创建{@link org.springframework.boot.context.event.EventPublishingRunListener}实例时会传入构造器初始化参数(this){@link SpringApplication}
+		 * ,在其构造方法{@link org.springframework.boot.context.event.EventPublishingRunListener#EventPublishingRunListener(SpringApplication, String[])}
+		 * 中会初始化一个广播器{@link org.springframework.context.event.SimpleApplicationEventMulticaster},并且将之前的
+		 * @see #setListeners(Collection) spring监听器实例(11个)添加到广播器中
+		 *
+		 */
 		SpringApplicationRunListeners listeners = getRunListeners(args);
+		/**
+		 * 应用程序启动事件 {@link org.springframework.boot.context.event.ApplicationStartingEvent}
+		 *
+		 * @see org.springframework.boot.context.event.EventPublishingRunListener#starting()
+		 * @see org.springframework.context.event.SimpleApplicationEventMulticaster#multicastEvent(ApplicationEvent)
+		 * @see org.springframework.context.event.SimpleApplicationEventMulticaster#multicastEvent(ApplicationEvent, ResolvableType)
+		 * @see org.springframework.context.event.AbstractApplicationEventMulticaster#getApplicationListeners(ApplicationEvent, ResolvableType)
+		 * @see org.springframework.context.event.SimpleApplicationEventMulticaster#invokeListener(ApplicationListener, ApplicationEvent)
+		 *
+		 * getApplicationListeners
+		 * {@link org.springframework.boot.context.logging.LoggingApplicationListener#onApplicationEvent(ApplicationEvent)}
+		 * {@link org.springframework.boot.autoconfigure.BackgroundPreinitializer#onApplicationEvent(SpringApplicationEvent)}
+		 * {@link org.springframework.boot.context.config.DelegatingApplicationListener#onApplicationEvent(ApplicationEvent)}
+		 * {@link org.springframework.boot.liquibase.LiquibaseServiceLocatorApplicationListener#onApplicationEvent(ApplicationStartingEvent)}
+		 *
+		 */
 		listeners.starting();
 		try {
 			ApplicationArguments applicationArguments = new DefaultApplicationArguments(args);
@@ -464,7 +489,9 @@ public class SpringApplication {
 	}
 
 	private SpringApplicationRunListeners getRunListeners(String[] args) {
+		//EventPublishingRunListener 构造函数参数类型数组
 		Class<?>[] types = new Class<?>[] { SpringApplication.class, String[].class };
+		//实例化EventPublishingRunListener时会将spring工厂监听器实例添加到SimpleApplicationEventMulticaster广播器中
 		return new SpringApplicationRunListeners(logger,
 				getSpringFactoriesInstances(SpringApplicationRunListener.class, types, this, args));
 	}
@@ -477,6 +504,14 @@ public class SpringApplication {
 		return getSpringFactoriesInstances(type, new Class<?>[] {});
 	}
 
+	/**
+	 * 获取spring工厂实例
+	 * @param type 实例Class类型
+	 * @param parameterTypes 实例对象构造器参数Class类型数组
+	 * @param args 需要被应用的构造器参数数组
+	 *
+	 * @see BeanUtils#instantiateClass(Constructor, Object...)
+	 */
 	private <T> Collection<T> getSpringFactoriesInstances(Class<T> type, Class<?>[] parameterTypes, Object... args) {
 		/**
 		 * 获取类加载器
@@ -488,6 +523,8 @@ public class SpringApplication {
 		/**
 		 * 通过java技术获取类路径下所有META-INF/spring.factories下指定类型的实现的全限定名称
 		 * {@link SpringFactoriesLoader#loadFactoryNames(Class, ClassLoader)}
+		 * 方法(loadFactoryNames(ClassLoader))有缓存策略,也就是说第一次会全部加载(META-INF/spring.factories)下的内容并写入缓存,后面的请求直接从缓存中获取返回 {@value Map<String, List<String>>}
+		 *
 		 * {@linkplain org.springframework.core.io.support.PropertiesLoaderUtils#loadProperties(Resource)}
 		 *
 		 */

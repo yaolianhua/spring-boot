@@ -22,6 +22,8 @@ import java.util.List;
 
 import org.apache.commons.logging.Log;
 
+import org.springframework.boot.context.event.ApplicationStartingEvent;
+import org.springframework.boot.context.event.EventPublishingRunListener;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.util.ReflectionUtils;
@@ -42,6 +44,10 @@ class SpringApplicationRunListeners {
 		this.listeners = new ArrayList<>(listeners);
 	}
 
+	/**
+	 * 应用程序启动事件 {@link ApplicationStartingEvent}
+	 * @see EventPublishingRunListener#starting()
+	 */
 	void starting() {
 		for (SpringApplicationRunListener listener : this.listeners) {
 			listener.starting();
