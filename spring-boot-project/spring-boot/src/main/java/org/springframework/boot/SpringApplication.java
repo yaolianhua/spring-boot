@@ -62,15 +62,7 @@ import org.springframework.core.ResolvableType;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.support.ConfigurableConversionService;
-import org.springframework.core.env.CommandLinePropertySource;
-import org.springframework.core.env.CompositePropertySource;
-import org.springframework.core.env.ConfigurableEnvironment;
-import org.springframework.core.env.Environment;
-import org.springframework.core.env.MapPropertySource;
-import org.springframework.core.env.MutablePropertySources;
-import org.springframework.core.env.PropertySource;
-import org.springframework.core.env.SimpleCommandLinePropertySource;
-import org.springframework.core.env.StandardEnvironment;
+import org.springframework.core.env.*;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
@@ -376,13 +368,20 @@ public class SpringApplication {
 		 * getApplicationListeners
 		 * {@link org.springframework.boot.context.logging.LoggingApplicationListener#onApplicationEvent(ApplicationEvent)}
 		 * {@link org.springframework.boot.autoconfigure.BackgroundPreinitializer#onApplicationEvent(SpringApplicationEvent)}
-		 * {@link org.springframework.boot.context.config.DelegatingApplicationListener#onApplicationEvent(ApplicationEvent)}
-		 * {@link org.springframework.boot.liquibase.LiquibaseServiceLocatorApplicationListener#onApplicationEvent(ApplicationStartingEvent)}
+		 * {@link org.springframework.boot.context.config.DelegatingApplicationListener#onApplicationEvent(ApplicationEvent)} 未执行任何启动事件
+		 * {@link org.springframework.boot.liquibase.LiquibaseServiceLocatorApplicationListener#onApplicationEvent(ApplicationStartingEvent)} {@linkplain liquibase.servicelocator.CustomResolverServiceLocator} 未执行任何事件,返回false
 		 *
 		 */
 		listeners.starting();
 		try {
+			/**
+			 * 创建应用程序参数对象
+			 */
 			ApplicationArguments applicationArguments = new DefaultApplicationArguments(args);
+			/**
+			 * 应用程序环境准备
+			 * @see #prepareEnvironment(SpringApplicationRunListeners, ApplicationArguments)
+			 */
 			ConfigurableEnvironment environment = prepareEnvironment(listeners, applicationArguments);
 			configureIgnoreBeanInfo(environment);
 			Banner printedBanner = printBanner(environment);
@@ -414,10 +413,31 @@ public class SpringApplication {
 		return context;
 	}
 
+	/**
+	 * 应用程序环境准备
+	 * @param listeners {@link SpringApplicationRunListeners}
+	 * @param applicationArguments {@link DefaultApplicationArguments}
+	 * @return ConfigurableEnvironment
+	 */
 	private ConfigurableEnvironment prepareEnvironment(SpringApplicationRunListeners listeners,
 			ApplicationArguments applicationArguments) {
 		// Create and configure the environment
+		/**
+		 * 创建一个可配置环境
+		 *
+		 * 由继承关系可知,会先实例化父类,并初始化相关属性数据{@link AbstractEnvironment#AbstractEnvironment()},
+		 * 由子类各自实现{@link AbstractEnvironment#customizePropertySources(MutablePropertySources)}
+		 *
+		 * @see StandardServletEnvironment
+		 * @see StandardReactiveWebEnvironment
+		 */
 		ConfigurableEnvironment environment = getOrCreateEnvironment();
+		/**
+		 * 应用程序环境相关设置
+		 * @see #configureEnvironment(ConfigurableEnvironment, String[]) 模板方法,具体配置由下面2个方法实现
+		 * @see #configurePropertySources(ConfigurableEnvironment, String[])
+		 * @see #configureProfiles(ConfigurableEnvironment, String[])
+		 */
 		configureEnvironment(environment, applicationArguments.getSourceArgs());
 		ConfigurationPropertySources.attach(environment);
 		listeners.environmentPrepared(environment);
@@ -592,10 +612,23 @@ public class SpringApplication {
 	 */
 	protected void configureEnvironment(ConfigurableEnvironment environment, String[] args) {
 		if (this.addConversionService) {
+			/**
+			 * 返回一个{@link ApplicationConversionService}实例
+			 */
 			ConversionService conversionService = ApplicationConversionService.getSharedInstance();
+			/**
+			 * 将{@link ApplicationConversionService} 实例加入环境当中
+			 * @see ConfigurablePropertyResolver#setConversionService(ConfigurableConversionService)
+			 */
 			environment.setConversionService((ConfigurableConversionService) conversionService);
 		}
+		/**
+		 * 添加/删除/排序{@link PropertySource}
+		 */
 		configurePropertySources(environment, args);
+		/**
+		 * 配置待激活或再激活(额外引入)profile {@code spring.profiles.active}
+		 */
 		configureProfiles(environment, args);
 	}
 
@@ -607,10 +640,19 @@ public class SpringApplication {
 	 * @see #configureEnvironment(ConfigurableEnvironment, String[])
 	 */
 	protected void configurePropertySources(ConfigurableEnvironment environment, String[] args) {
+		/**
+		 * 获取可变属性配置
+		 * {@link StandardServletEnvironment}
+		 * {@link StandardEnvironment}
+		 * {@link AbstractEnvironment}
+		 */
 		MutablePropertySources sources = environment.getPropertySources();
 		if (this.defaultProperties != null && !this.defaultProperties.isEmpty()) {
 			sources.addLast(new MapPropertySource("defaultProperties", this.defaultProperties));
 		}
+		/**
+		 * 命令行参数配置,类似于java -jar --参数=value等格式,参数通过String[] args传递进来
+		 */
 		if (this.addCommandLineProperties && args.length > 0) {
 			String name = CommandLinePropertySource.COMMAND_LINE_PROPERTY_SOURCE_NAME;
 			if (sources.contains(name)) {
@@ -638,7 +680,14 @@ public class SpringApplication {
 	 */
 	protected void configureProfiles(ConfigurableEnvironment environment, String[] args) {
 		Set<String> profiles = new LinkedHashSet<>(this.additionalProfiles);
+		/**
+		 * @see AbstractEnvironment#doGetActiveProfiles()
+		 * @see AbstractEnvironment#doGetDefaultProfiles()
+		 */
 		profiles.addAll(Arrays.asList(environment.getActiveProfiles()));
+		/**
+		 * @see ConfigurableEnvironment#setActiveProfiles(String...)
+		 */
 		environment.setActiveProfiles(StringUtils.toStringArray(profiles));
 	}
 

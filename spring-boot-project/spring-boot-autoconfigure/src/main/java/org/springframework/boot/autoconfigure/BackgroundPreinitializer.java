@@ -68,6 +68,16 @@ public class BackgroundPreinitializer implements ApplicationListener<SpringAppli
 		if (!Boolean.getBoolean(IGNORE_BACKGROUNDPREINITIALIZER_PROPERTY_NAME)
 				&& event instanceof ApplicationStartingEvent && multipleProcessors()
 				&& preinitializationStarted.compareAndSet(false, true)) {
+			/**
+			 * {启动事件}
+			 * 后台预处理初始化(runnable任务)
+			 *
+			 * @see ConversionServiceInitializer#run() 初始化spring早期ConversionService {@linkplain DefaultFormattingConversionService#DefaultFormattingConversionService()}
+			 * @see ValidationInitializer#run() 初始化javax.validation早期校验器 {@linkplain javax.validation.Validation}
+			 * @see MessageConverterInitializer#run() 初始化spring早期消息转换器 {@linkplain AllEncompassingFormHttpMessageConverter}
+			 * @see JacksonInitializer#run()  Jackson初始化程序 {@linkplain com.fasterxml.jackson.databind.ObjectMapper}
+			 * @see CharsetInitializer#run()  编码 {@linkplain StandardCharsets.UTF_8}
+			 */
 			performPreinitialization();
 		}
 		if ((event instanceof ApplicationReadyEvent || event instanceof ApplicationFailedEvent)
