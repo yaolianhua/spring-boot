@@ -202,11 +202,19 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 		List<EnvironmentPostProcessor> postProcessors = loadPostProcessors();
 		/**
 		 * 添加自己
-		 * {@link ConfigFileApplicationListener}
+		 * @see ConfigFileApplicationListener 实现了{@link EnvironmentPostProcessor}
 		 */
 		postProcessors.add(this);
 		AnnotationAwareOrderComparator.sort(postProcessors);
 		for (EnvironmentPostProcessor postProcessor : postProcessors) {
+			/**
+			 * 可配置环境后置处理
+			 * @see org.springframework.boot.env.SystemEnvironmentPropertySourceEnvironmentPostProcessor#postProcessEnvironment(ConfigurableEnvironment, SpringApplication)
+			 * @see org.springframework.boot.env.SpringApplicationJsonEnvironmentPostProcessor#postProcessEnvironment(ConfigurableEnvironment, SpringApplication)
+			 * @see org.springframework.boot.cloud.CloudFoundryVcapEnvironmentPostProcessor#postProcessEnvironment(ConfigurableEnvironment, SpringApplication)
+			 * @see ConfigFileApplicationListener#postProcessEnvironment(ConfigurableEnvironment, SpringApplication)
+			 * @see org.springframework.boot.reactor.DebugAgentEnvironmentPostProcessor#postProcessEnvironment(ConfigurableEnvironment, SpringApplication)
+			 */
 			postProcessor.postProcessEnvironment(event.getEnvironment(), event.getSpringApplication());
 		}
 	}
@@ -232,6 +240,10 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 	 * @see #addPostProcessors(ConfigurableApplicationContext)
 	 */
 	protected void addPropertySources(ConfigurableEnvironment environment, ResourceLoader resourceLoader) {
+		/**
+		 * 向{@link MutablePropertySources#propertySourceList}添加一个{@link RandomValuePropertySource}到systemEnvironment属性之后
+		 * @see RandomValuePropertySource#addToEnvironment(ConfigurableEnvironment)
+		 */
 		RandomValuePropertySource.addToEnvironment(environment);
 		new Loader(environment, resourceLoader).load();
 	}
