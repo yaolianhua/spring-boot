@@ -193,7 +193,17 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 	}
 
 	private void onApplicationEnvironmentPreparedEvent(ApplicationEnvironmentPreparedEvent event) {
+		/**
+		 * {@link org.springframework.boot.env.SystemEnvironmentPropertySourceEnvironmentPostProcessor}
+		 * {@link org.springframework.boot.env.SpringApplicationJsonEnvironmentPostProcessor}
+		 * {@link org.springframework.boot.cloud.CloudFoundryVcapEnvironmentPostProcessor}
+		 * {@link org.springframework.boot.reactor.DebugAgentEnvironmentPostProcessor}
+		 */
 		List<EnvironmentPostProcessor> postProcessors = loadPostProcessors();
+		/**
+		 * 添加自己
+		 * {@link ConfigFileApplicationListener}
+		 */
 		postProcessors.add(this);
 		AnnotationAwareOrderComparator.sort(postProcessors);
 		for (EnvironmentPostProcessor postProcessor : postProcessors) {
@@ -328,6 +338,12 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 			this.placeholdersResolver = new PropertySourcesPlaceholdersResolver(this.environment);
 			this.resourceLoader = (resourceLoader != null) ? resourceLoader
 					: new DefaultResourceLoader(getClass().getClassLoader());
+			/**
+			 * 加载两个spring属性配置工厂对象
+			 * @see #propertySourceLoaders
+			 * {@link org.springframework.boot.env.PropertiesPropertySourceLoader}
+			 * {@link org.springframework.boot.env.YamlPropertySourceLoader}
+			 */
 			this.propertySourceLoaders = SpringFactoriesLoader.loadFactories(PropertySourceLoader.class,
 					getClass().getClassLoader());
 		}
@@ -339,8 +355,17 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 						this.processedProfiles = new LinkedList<>();
 						this.activatedProfiles = false;
 						this.loaded = new LinkedHashMap<>();
+						/**
+						 * 初始化profile信息
+						 * @see #initializeProfiles()
+						 * @see #profiles 执行后队列长度为2,第一个元素为null,第二个元素{@value new Profile(defaultProfileName, true)}
+						 */
 						initializeProfiles();
 						while (!this.profiles.isEmpty()) {
+							/**
+							 * 第一次poll时 profile为{@value null}元素
+							 * 第二次poll时 profile为{@value spring.profiles.active=dev}元素
+							 */
 							Profile profile = this.profiles.poll();
 							if (isDefaultProfile(profile)) {
 								addProfileToEnvironment(profile.getName());

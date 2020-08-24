@@ -440,6 +440,16 @@ public class SpringApplication {
 		 */
 		configureEnvironment(environment, applicationArguments.getSourceArgs());
 		ConfigurationPropertySources.attach(environment);
+		/**
+		 *
+		 * {@link org.springframework.boot.context.config.ConfigFileApplicationListener}
+		 * {@link }
+		 * {@link }
+		 * {@link }
+		 * {@link }
+		 * {@link }
+		 * {@link }
+		 */
 		listeners.environmentPrepared(environment);
 		bindToSpringApplication(environment);
 		if (!this.isCustomEnvironment) {
@@ -647,6 +657,9 @@ public class SpringApplication {
 		 * {@link AbstractEnvironment}
 		 */
 		MutablePropertySources sources = environment.getPropertySources();
+		/**
+		 * @see #defaultProperties Setter method
+		 */
 		if (this.defaultProperties != null && !this.defaultProperties.isEmpty()) {
 			sources.addLast(new MapPropertySource("defaultProperties", this.defaultProperties));
 		}

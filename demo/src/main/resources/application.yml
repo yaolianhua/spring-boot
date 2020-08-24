@@ -1,0 +1,13 @@
+spring:
+  profiles:
+    active: dev
+---
+spring:
+  profiles: dev
+server:
+  port: 8888
+---
+spring:
+  profiles: beta
+server:
+  port: 9999

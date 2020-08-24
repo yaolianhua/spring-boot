@@ -84,6 +84,9 @@ public class EventPublishingRunListener implements SpringApplicationRunListener,
 		this.initialMulticaster.multicastEvent(new ApplicationStartingEvent(this.application, this.args));
 	}
 
+	/**
+	 * 应用程序可配置环境准备事件广播
+	 */
 	@Override
 	public void environmentPrepared(ConfigurableEnvironment environment) {
 		this.initialMulticaster
