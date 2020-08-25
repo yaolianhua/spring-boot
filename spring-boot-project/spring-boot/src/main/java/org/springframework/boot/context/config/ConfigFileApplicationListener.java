@@ -43,6 +43,7 @@ import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.cloud.CloudPlatform;
 import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
 import org.springframework.boot.context.event.ApplicationPreparedEvent;
 import org.springframework.boot.context.properties.bind.Bindable;
@@ -184,6 +185,10 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 
 	@Override
 	public void onApplicationEvent(ApplicationEvent event) {
+		/**
+		 * 环境准备事件
+		 * @see #onApplicationEnvironmentPreparedEvent(ApplicationEnvironmentPreparedEvent)
+		 */
 		if (event instanceof ApplicationEnvironmentPreparedEvent) {
 			onApplicationEnvironmentPreparedEvent((ApplicationEnvironmentPreparedEvent) event);
 		}
@@ -194,6 +199,12 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 
 	private void onApplicationEnvironmentPreparedEvent(ApplicationEnvironmentPreparedEvent event) {
 		/**
+		 * 加载Spring的环境后置处理器工厂实例(直接从缓存中获取，因为先前已经全部加载并放入缓存){@link SpringFactoriesLoader#cache}
+		 * @see SpringFactoriesLoader#loadFactories(Class, ClassLoader)
+		 * @see SpringFactoriesLoader#loadFactoryNames(Class, ClassLoader)
+		 * @see SpringFactoriesLoader#loadSpringFactories(ClassLoader)
+		 *
+		 *
 		 * {@link org.springframework.boot.env.SystemEnvironmentPropertySourceEnvironmentPostProcessor}
 		 * {@link org.springframework.boot.env.SpringApplicationJsonEnvironmentPostProcessor}
 		 * {@link org.springframework.boot.cloud.CloudFoundryVcapEnvironmentPostProcessor}
@@ -208,12 +219,38 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 		AnnotationAwareOrderComparator.sort(postProcessors);
 		for (EnvironmentPostProcessor postProcessor : postProcessors) {
 			/**
-			 * 可配置环境后置处理
+			 * 可配置环境后置处理(5个后置处理器)
 			 * @see org.springframework.boot.env.SystemEnvironmentPropertySourceEnvironmentPostProcessor#postProcessEnvironment(ConfigurableEnvironment, SpringApplication)
+			 * 替换{@link MutablePropertySources#propertySourceList}中systemEnvironment属性对象
+			 *
+			 *
 			 * @see org.springframework.boot.env.SpringApplicationJsonEnvironmentPostProcessor#postProcessEnvironment(ConfigurableEnvironment, SpringApplication)
+			 * 处理{@link org.springframework.boot.env.SpringApplicationJsonEnvironmentPostProcessor#SPRING_APPLICATION_JSON_PROPERTY}属性配置
+			 * 和{@link org.springframework.boot.env.SpringApplicationJsonEnvironmentPostProcessor#SPRING_APPLICATION_JSON_ENVIRONMENT_VARIABLE}环境变量(若存在的话)
+			 *
+			 *
 			 * @see org.springframework.boot.cloud.CloudFoundryVcapEnvironmentPostProcessor#postProcessEnvironment(ConfigurableEnvironment, SpringApplication)
+			 * Cloud Foundry环境处理{@link CloudPlatform}
+			 *
+			 *
 			 * @see ConfigFileApplicationListener#postProcessEnvironment(ConfigurableEnvironment, SpringApplication)
+			 * 将配置文件中的(yml,xml,properties.yaml)属性源添加到当前环境中[逻辑很复杂，需要有耐心跟踪]，主要通过
+			 * {@link org.springframework.boot.env.PropertiesPropertySourceLoader}
+			 * {@link org.springframework.boot.env.YamlPropertySourceLoader}这两个Spring工厂实例来负责加载和解析
+			 * 加载路径为{@value DEFAULT_SEARCH_LOCATIONS},它们均是目录，也就是说会在这些目录下循环依次加载配置(属性)文件
+			 * 其中几个关键逻辑及相关方法
+			 * @see Loader#initializeProfiles()
+			 * @see Loader#load(Profile, DocumentFilterFactory, DocumentConsumer)
+			 * @see Loader#load(String, String, Profile, DocumentFilterFactory, DocumentConsumer)
+			 * @see Loader#loadForFileExtension(PropertySourceLoader, String, String, Profile, DocumentFilterFactory, DocumentConsumer)
+			 * @see Loader#load(PropertySourceLoader, String, Profile, DocumentFilter, DocumentConsumer)
+			 * @see Loader#loadDocuments(PropertySourceLoader, String, Resource)
+			 * @see Loader#addLoadedPropertySources()
+			 * @see Loader#applyActiveProfiles(PropertySource)
+			 *
+			 * 
 			 * @see org.springframework.boot.reactor.DebugAgentEnvironmentPostProcessor#postProcessEnvironment(ConfigurableEnvironment, SpringApplication)
+			 * 启用reactor调试代理(若环境可用的话)
 			 */
 			postProcessor.postProcessEnvironment(event.getEnvironment(), event.getSpringApplication());
 		}
@@ -387,7 +424,11 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 							this.processedProfiles.add(profile);
 						}
 						load(null, this::getNegativeProfileFilter, addToLoaded(MutablePropertySources::addFirst, true));
+						/**
+						 * 添加属性配置到{@link MutablePropertySources#propertySourceList}
+						 */
 						addLoadedPropertySources();
+						//应用激活配置文件
 						applyActiveProfiles(defaultProperties);
 					});
 		}

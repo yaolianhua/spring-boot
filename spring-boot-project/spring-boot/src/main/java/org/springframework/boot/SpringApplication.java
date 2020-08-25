@@ -426,7 +426,7 @@ public class SpringApplication {
 		 * 创建一个可配置环境
 		 *
 		 * 由继承关系可知,会先实例化父类,并初始化相关属性数据{@link AbstractEnvironment#AbstractEnvironment()},
-		 * 由子类各自实现{@link AbstractEnvironment#customizePropertySources(MutablePropertySources)}
+		 * 相关属性信息由子类各自实现{@link AbstractEnvironment#customizePropertySources(MutablePropertySources)}
 		 *
 		 * @see StandardServletEnvironment
 		 * @see StandardReactiveWebEnvironment
@@ -696,6 +696,7 @@ public class SpringApplication {
 		/**
 		 * @see AbstractEnvironment#doGetActiveProfiles()
 		 * @see AbstractEnvironment#doGetDefaultProfiles()
+		 * @see PropertySourcesPropertyResolver#getProperty(String)
 		 */
 		profiles.addAll(Arrays.asList(environment.getActiveProfiles()));
 		/**
