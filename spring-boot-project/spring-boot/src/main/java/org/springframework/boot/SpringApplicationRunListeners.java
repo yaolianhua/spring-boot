@@ -54,6 +54,10 @@ class SpringApplicationRunListeners {
 		}
 	}
 
+	/**
+	 * 应用程序环环境准备事件 {@link org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent}
+	 * @see EventPublishingRunListener#environmentPrepared(ConfigurableEnvironment)
+	 */
 	void environmentPrepared(ConfigurableEnvironment environment) {
 		for (SpringApplicationRunListener listener : this.listeners) {
 			listener.environmentPrepared(environment);

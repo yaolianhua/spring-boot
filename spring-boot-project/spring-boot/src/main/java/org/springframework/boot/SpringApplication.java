@@ -43,6 +43,7 @@ import org.springframework.beans.factory.support.BeanNameGenerator;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.beans.factory.xml.XmlBeanDefinitionReader;
 import org.springframework.boot.Banner.Mode;
+import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
 import org.springframework.boot.context.event.ApplicationStartingEvent;
 import org.springframework.boot.context.event.SpringApplicationEvent;
 import org.springframework.boot.context.properties.bind.Bindable;
@@ -347,7 +348,9 @@ public class SpringApplication {
 		 */
 		configureHeadlessProperty();
 		/**
-		 * 获取 {@link SpringApplicationRunListener} 集合
+		 * 获取 {@link SpringApplicationRunListener} 集合，这里实际上创建了一个{@link org.springframework.boot.context.event.EventPublishingRunListener}实例，并且在
+		 * {@link org.springframework.boot.context.event.EventPublishingRunListener}中实例化了一个广播器{@link org.springframework.context.event.SimpleApplicationEventMulticaster}
+		 * 并同时把11个Spring监听器工厂实例加入到广播器中，后续很多应用事件都靠这些监听器来实现
 		 *
 		 * 创建{@link org.springframework.boot.context.event.EventPublishingRunListener}实例时会传入构造器初始化参数(this){@link SpringApplication}
 		 * ,在其构造方法{@link org.springframework.boot.context.event.EventPublishingRunListener#EventPublishingRunListener(SpringApplication, String[])}
@@ -379,7 +382,7 @@ public class SpringApplication {
 			 */
 			ApplicationArguments applicationArguments = new DefaultApplicationArguments(args);
 			/**
-			 * 应用程序环境准备
+			 * 应用程序环境准备[做的事情比较多，注释写在方法里面]，主要完成环境创建，属性源加载，环境绑定等(通过环境准备事件完成)
 			 * @see #prepareEnvironment(SpringApplicationRunListeners, ApplicationArguments)
 			 */
 			ConfigurableEnvironment environment = prepareEnvironment(listeners, applicationArguments);
@@ -439,23 +442,55 @@ public class SpringApplication {
 		 * @see #configureProfiles(ConfigurableEnvironment, String[])
 		 */
 		configureEnvironment(environment, applicationArguments.getSourceArgs());
+		/**
+		 * 向{@link MutablePropertySources#propertySourceList}
+		 * 中添加一个配置属性{@link ConfigurationPropertySourcesPropertySource#ConfigurationPropertySourcesPropertySource(String, Iterable)}到首位
+		 * @param string {@link ConfigurationPropertySources#ATTACHED_PROPERTY_SOURCE_NAME}
+		 * @param Iterable {@link org.springframework.boot.context.properties.source.SpringConfigurationPropertySource#SpringConfigurationPropertySource(PropertySource, PropertyMapper...)}
+		 * 到这里属性配置有5个
+		 */
 		ConfigurationPropertySources.attach(environment);
 		/**
 		 *
-		 * {@link org.springframework.boot.context.config.ConfigFileApplicationListener}
-		 * {@link }
-		 * {@link }
-		 * {@link }
-		 * {@link }
-		 * {@link }
-		 * {@link }
+		 * {@link org.springframework.boot.context.config.ConfigFileApplicationListener#onApplicationEnvironmentPreparedEvent(ApplicationEnvironmentPreparedEvent)}
+		 * 加载4个Spring环境后置处理器工厂实例，执行5个(自身既是监听器又是一个环境后置处理器)环境后置处理方法[比较重要，注释写在方法里面]
+		 * 主要是完成将配置文件中的(yml,xml,properties.yaml)属性源添加到当前环境中
+		 *
+		 * {@link org.springframework.boot.context.config.AnsiOutputApplicationListener#onApplicationEvent(ApplicationEnvironmentPreparedEvent)}
+		 * 生成ANSI编码输出，自动检测终端是否支持ANSI
+		 *
+		 * {@link org.springframework.boot.context.logging.LoggingApplicationListener#onApplicationEnvironmentPreparedEvent(ApplicationEnvironmentPreparedEvent)}
+		 * 根据环境首选项和类路径初始化日志记录系统
+		 *
+		 * {@link org.springframework.boot.autoconfigure.BackgroundPreinitializer#onApplicationEvent(SpringApplicationEvent)}
+		 * 没有可执行的事件
+		 *
+		 * {@link org.springframework.boot.context.logging.ClasspathLoggingApplicationListener#onApplicationEvent(ApplicationEvent)}
+		 * 记录一条debug日志信息
+		 *
+		 * {@link org.springframework.boot.context.config.DelegatingApplicationListener#onApplicationEvent(ApplicationEvent)}
+		 * 委托给在{@value context.listener.classes}环境属性下面指定的其他侦听器
+		 *
+		 * {@link org.springframework.boot.context.FileEncodingApplicationListener#onApplicationEvent(ApplicationEnvironmentPreparedEvent)}
+		 * spring.mandatory-file-encoding
 		 */
 		listeners.environmentPrepared(environment);
+		/**
+		 * 将环境绑定到当前应用程序上{@link SpringApplication}
+		 */
 		bindToSpringApplication(environment);
+		/**
+		 * 环境转换，若当前环境与推断环境类型是同类型，则不做任何操作，返回当前环境
+		 * @see EnvironmentConverter#EnvironmentConverter(ClassLoader)
+		 * @see EnvironmentConverter#convertEnvironmentIfNecessary(ConfigurableEnvironment, Class)
+		 * @see #deduceEnvironmentClass()
+		 */
 		if (!this.isCustomEnvironment) {
-			environment = new EnvironmentConverter(getClassLoader()).convertEnvironmentIfNecessary(environment,
-					deduceEnvironmentClass());
+			environment = new EnvironmentConverter(getClassLoader()).convertEnvironmentIfNecessary(environment, deduceEnvironmentClass());
 		}
+		/**
+		 * attached resolver会动态跟踪从{@link Environment}中添加或删除的任何属性源
+		 */
 		ConfigurationPropertySources.attach(environment);
 		return environment;
 	}
@@ -519,11 +554,16 @@ public class SpringApplication {
 	}
 
 	private SpringApplicationRunListeners getRunListeners(String[] args) {
-		//EventPublishingRunListener 构造函数参数类型数组
+		/**
+		 * {@link org.springframework.boot.context.event.EventPublishingRunListener} 构造函数参数类型数组(反射创建实例时会用到[构造器创建])
+		 */
 		Class<?>[] types = new Class<?>[] { SpringApplication.class, String[].class };
-		//实例化EventPublishingRunListener时会将spring工厂监听器实例添加到SimpleApplicationEventMulticaster广播器中
-		return new SpringApplicationRunListeners(logger,
-				getSpringFactoriesInstances(SpringApplicationRunListener.class, types, this, args));
+		/**
+		 * 实例化EventPublishingRunListener时会将spring工厂监听器实例添加到SimpleApplicationEventMulticaster广播器中
+		 * @see org.springframework.boot.context.event.EventPublishingRunListener#EventPublishingRunListener
+		 * @see org.springframework.context.event.SimpleApplicationEventMulticaster#addApplicationListener(ApplicationListener)
+		 */
+		return new SpringApplicationRunListeners(logger, getSpringFactoriesInstances(SpringApplicationRunListener.class, types, this, args));
 	}
 
 	/**
