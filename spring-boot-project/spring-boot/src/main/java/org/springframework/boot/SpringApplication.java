@@ -68,6 +68,7 @@ import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.io.support.SpringFactoriesLoader;
+import org.springframework.format.support.DefaultFormattingConversionService;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.CollectionUtils;
@@ -269,7 +270,8 @@ public class SpringApplication {
 		 */
 		this.webApplicationType = WebApplicationType.deduceFromClasspath();
 		/**
-		 * 设置应用程序上下文初始器
+		 * 设置应用程序上下文初始器(从META-INF/spring.factories中获取类全限定名，通过反射创建对应实例)
+		 * @see #getSpringFactoriesInstances(Class)
 		 * {@link ApplicationContextInitializer}
 		 * @see #setInitializers(Collection)
 		 *
@@ -283,7 +285,8 @@ public class SpringApplication {
 		 */
 		setInitializers((Collection) getSpringFactoriesInstances(ApplicationContextInitializer.class));
 		/**
-		 * 设置应用程序初始监听器
+		 * 设置应用程序初始监听器(从META-INF/spring.factories中获取类全限定名，通过反射创建对应实例)
+		 * @see #getSpringFactoriesInstances(Class)
 		 * {@link ApplicationListener}
 		 * @see #setListeners(Collection)
 		 *
@@ -370,9 +373,22 @@ public class SpringApplication {
 		 *
 		 * getApplicationListeners
 		 * {@link org.springframework.boot.context.logging.LoggingApplicationListener#onApplicationEvent(ApplicationEvent)}
+		 * 获取当前日志系统类型，并将日志记录系统重置为限制输出
+		 *
 		 * {@link org.springframework.boot.autoconfigure.BackgroundPreinitializer#onApplicationEvent(SpringApplicationEvent)}
-		 * {@link org.springframework.boot.context.config.DelegatingApplicationListener#onApplicationEvent(ApplicationEvent)} 未执行任何启动事件
-		 * {@link org.springframework.boot.liquibase.LiquibaseServiceLocatorApplicationListener#onApplicationEvent(ApplicationStartingEvent)} {@linkplain liquibase.servicelocator.CustomResolverServiceLocator} 未执行任何事件,返回false
+		 * 异步处理一些后台任务
+		 * @see BackgroundPConversionServiceInitializer#run() 初始化spring早期ConversionService {@linkplain DefaultFormattingConversionService#DefaultFormattingConversionService()}
+		 * @see ValidationInitializer#run() 初始化javax.validation早期校验器 {@linkplain javax.validation.Validation}
+		 * @see MessageConverterInitializer#run() 初始化spring早期消息转换器 {@linkplain AllEncompassingFormHttpMessageConverter}
+		 * @see JacksonInitializer#run()  Jackson初始化程序 {@linkplain com.fasterxml.jackson.databind.ObjectMapper}
+		 * @see CharsetInitializer#run()  编码 {@linkplain StandardCharsets.UTF_8}
+		 *
+		 * {@link org.springframework.boot.context.config.DelegatingApplicationListener#onApplicationEvent(ApplicationEvent)}
+		 * 未执行任何启动事件
+		 *
+		 * {@link org.springframework.boot.liquibase.LiquibaseServiceLocatorApplicationListener#onApplicationEvent(ApplicationStartingEvent)}
+		 * {@linkplain liquibase.servicelocator.CustomResolverServiceLocator}
+		 * 未执行任何事件,返回false
 		 *
 		 */
 		listeners.starting();
@@ -382,7 +398,8 @@ public class SpringApplication {
 			 */
 			ApplicationArguments applicationArguments = new DefaultApplicationArguments(args);
 			/**
-			 * 应用程序环境准备[做的事情比较多，注释写在方法里面]，主要完成环境创建，属性源加载，环境绑定等(通过环境准备事件完成)
+			 * 应用程序环境准备[做的事情比较多，注释写在方法里面]
+			 * 主要完成环境创建，属性源加载，环境绑定等(通过环境准备事件完成)
 			 * @see #prepareEnvironment(SpringApplicationRunListeners, ApplicationArguments)
 			 */
 			ConfigurableEnvironment environment = prepareEnvironment(listeners, applicationArguments);

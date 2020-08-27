@@ -237,7 +237,7 @@ public class LoggingApplicationListener implements GenericApplicationListener {
 		 */
 		this.loggingSystem = LoggingSystem.get(event.getSpringApplication().getClassLoader());
 		/**
-		 * 日志系统初始化之前
+		 * 日志系统完全初始化之前的一些操作
 		 * @see org.springframework.boot.logging.logback.LogbackLoggingSystem
 		 * @see org.springframework.boot.logging.Slf4JLoggingSystem
 		 * @see org.springframework.boot.logging.AbstractLoggingSystem
