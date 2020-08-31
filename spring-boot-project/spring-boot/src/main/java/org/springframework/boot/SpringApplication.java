@@ -212,7 +212,7 @@ public class SpringApplication {
 
 	private ConfigurableEnvironment environment;
 
-	private Class<? extends ConfigurableApplicationContext> applicationContextClass;
+	private Class<? extends ConfigurableApplicationContext> applicationContextClass;//应用上下文Class
 
 	private WebApplicationType webApplicationType;//web应用程序类型 REACTIVE/NONE/SERVLET
 
@@ -394,7 +394,7 @@ public class SpringApplication {
 		listeners.starting();
 		try {
 			/**
-			 * 创建应用程序参数对象
+			 * 创建应用程序参数对象,同时创建命令行参数对象{@linkplain SimpleCommandLineArgsParser#parse(String...)}
 			 */
 			ApplicationArguments applicationArguments = new DefaultApplicationArguments(args);
 			/**
@@ -403,8 +403,25 @@ public class SpringApplication {
 			 * @see #prepareEnvironment(SpringApplicationRunListeners, ApplicationArguments)
 			 */
 			ConfigurableEnvironment environment = prepareEnvironment(listeners, applicationArguments);
+			/**
+			 * 设置{@link CachedIntrospectionResults#IGNORE_BEANINFO_PROPERTY_NAME"spring.beaninfo.ignore"}
+			 */
 			configureIgnoreBeanInfo(environment);
+			/**
+			 * 打印banner图,模式可参考{@link Banner.Mode}
+			 * banner图支持自定义,可参考{@link SpringApplicationBannerPrinter#getBanner(Environment)}
+			 */
 			Banner printedBanner = printBanner(environment);
+			/**
+			 * 创建应用程序上下文[策略方法],返回未刷新的上下文对象
+			 * @see #setApplicationContextClass(Class) 可手动指定类型
+			 * {@link org.springframework.boot.web.servlet.context.AnnotationConfigServletWebServerApplicationContext}
+			 * {@link org.springframework.boot.web.reactive.context.AnnotationConfigReactiveWebServerApplicationContext}
+			 * {@link AnnotationConfigApplicationContext}
+			 *
+			 *
+			 *
+			 */
 			context = createApplicationContext();
 			exceptionReporters = getSpringFactoriesInstances(SpringBootExceptionReporter.class,
 					new Class[] { ConfigurableApplicationContext.class }, context);
@@ -751,12 +768,14 @@ public class SpringApplication {
 	protected void configureProfiles(ConfigurableEnvironment environment, String[] args) {
 		Set<String> profiles = new LinkedHashSet<>(this.additionalProfiles);
 		/**
+		 * 设置通过显示赋值{@link AbstractEnvironment#setActiveProfiles}[手动调用]激活配置文件集
 		 * @see AbstractEnvironment#doGetActiveProfiles()
 		 * @see AbstractEnvironment#doGetDefaultProfiles()
 		 * @see PropertySourcesPropertyResolver#getProperty(String)
 		 */
 		profiles.addAll(Arrays.asList(environment.getActiveProfiles()));
 		/**
+		 * 设置当前环境激活的配置文件集[默认下肯定是空集]
 		 * @see ConfigurableEnvironment#setActiveProfiles(String...)
 		 */
 		environment.setActiveProfiles(StringUtils.toStringArray(profiles));
