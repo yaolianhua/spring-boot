@@ -38,9 +38,7 @@ import org.springframework.beans.CachedIntrospectionResults;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.groovy.GroovyBeanDefinitionReader;
-import org.springframework.beans.factory.support.BeanDefinitionRegistry;
-import org.springframework.beans.factory.support.BeanNameGenerator;
-import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.beans.factory.support.*;
 import org.springframework.beans.factory.xml.XmlBeanDefinitionReader;
 import org.springframework.boot.Banner.Mode;
 import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
@@ -51,6 +49,8 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
 import org.springframework.boot.convert.ApplicationConversionService;
 import org.springframework.boot.web.reactive.context.StandardReactiveWebEnvironment;
+import org.springframework.boot.web.server.WebServer;
+import org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext;
 import org.springframework.context.*;
 import org.springframework.context.annotation.AnnotatedBeanDefinitionReader;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -413,13 +413,33 @@ public class SpringApplication {
 			 */
 			Banner printedBanner = printBanner(environment);
 			/**
-			 * 创建应用程序上下文[策略方法],返回未刷新的上下文对象
+			 * 创建应用程序上下文{@link org.springframework.boot.web.servlet.context.AnnotationConfigServletWebServerApplicationContext}[策略方法],返回未刷新的上下文对象
+			 * @see BeanUtils#instantiateClass(Class) 反射创建实例(无参构造器)，同时逐一初始化其父类
+			 * {@link org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext#ServletWebServerApplicationContext()}
 			 * @see #setApplicationContextClass(Class) 可手动指定类型
-			 * {@link org.springframework.boot.web.servlet.context.AnnotationConfigServletWebServerApplicationContext}
 			 * {@link org.springframework.boot.web.reactive.context.AnnotationConfigReactiveWebServerApplicationContext}
 			 * {@link AnnotationConfigApplicationContext}
 			 *
 			 *
+			 * 上下文刷新时[后面的步骤]，在此类中创建web服务器{@link WebServer}
+			 * @see ServletWebServerApplicationContext#onRefresh()
+			 * @see ServletWebServerApplicationContext#createWebServer()
+			 *
+			 * {@link org.springframework.web.context.support.GenericWebApplicationContext#GenericWebApplicationContext()}
+			 * {@link org.springframework.context.support.GenericApplicationContext#GenericApplicationContext()} 此构造方法中要初始化bean工厂{@link org.springframework.beans.factory.support.DefaultListableBeanFactory}
+			 * {@link DefaultListableBeanFactory}中几个常用的属性参数 {@value DefaultListableBeanFactory#beanDefinitionNames} {@value DefaultListableBeanFactory#beanDefinitionMap}
+			 * 初始化bean工厂的同时也会初始化其父类
+			 * {@link org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory#AbstractAutowireCapableBeanFactory()}此构造方法中会添加3个自动装配接口
+			 * {@link org.springframework.beans.factory.support.AbstractBeanFactory#AbstractBeanFactory()}提供了接口{@link org.springframework.beans.factory.config.ConfigurableBeanFactory}SPI的完整功能
+			 * 它持有{@value org.springframework.beans.factory.support.AbstractBeanFactory#beanPostProcessors}Spring bean的后置处理器集合[Spring扩展属性之一]
+			 *
+			 * {@link org.springframework.beans.factory.support.FactoryBeanRegistrySupport#FactoryBeanRegistrySupport()} 工厂bean注册支持类
+			 * {@link org.springframework.beans.factory.support.DefaultSingletonBeanRegistry#DefaultSingletonBeanRegistry()} Spring单例注册器(所有Spring单例
+			 * 均放在这里{@value org.springframework.beans.factory.support.DefaultSingletonBeanRegistry#singletonObjects})
+			 * {@link org.springframework.core.SimpleAliasRegistry}
+			 *
+			 * {@link org.springframework.context.support.AbstractApplicationContext}
+			 * 它持有{@value org.springframework.context.support.AbstractApplicationContext#beanFactoryPostProcessors}Spring bean工厂后置处理器集合[Spring扩展属性之二]
 			 *
 			 */
 			context = createApplicationContext();
