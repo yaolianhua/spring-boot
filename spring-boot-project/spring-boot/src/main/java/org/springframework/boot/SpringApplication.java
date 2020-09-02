@@ -35,23 +35,33 @@ import org.apache.commons.logging.LogFactory;
 
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.CachedIntrospectionResults;
+import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.groovy.GroovyBeanDefinitionReader;
 import org.springframework.beans.factory.support.*;
 import org.springframework.beans.factory.xml.XmlBeanDefinitionReader;
 import org.springframework.boot.Banner.Mode;
+import org.springframework.boot.context.config.ConfigFileApplicationListener;
 import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
+import org.springframework.boot.context.event.ApplicationPreparedEvent;
 import org.springframework.boot.context.event.ApplicationStartingEvent;
 import org.springframework.boot.context.event.SpringApplicationEvent;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
 import org.springframework.boot.convert.ApplicationConversionService;
+import org.springframework.boot.diagnostics.FailureAnalyzer;
 import org.springframework.boot.web.reactive.context.StandardReactiveWebEnvironment;
 import org.springframework.boot.web.server.WebServer;
+import org.springframework.boot.web.servlet.context.AnnotationConfigServletWebServerApplicationContext;
 import org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext;
 import org.springframework.context.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.*;
+import org.springframework.context.event.EventListener;
+import org.springframework.context.event.EventListenerFactory;
 import org.springframework.context.annotation.AnnotatedBeanDefinitionReader;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigUtils;
@@ -64,10 +74,12 @@ import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.support.ConfigurableConversionService;
 import org.springframework.core.env.*;
+import org.springframework.core.env.PropertySource;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.io.support.SpringFactoriesLoader;
+import org.springframework.core.type.AnnotatedTypeMetadata;
 import org.springframework.format.support.DefaultFormattingConversionService;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -377,7 +389,7 @@ public class SpringApplication {
 		 *
 		 * {@link org.springframework.boot.autoconfigure.BackgroundPreinitializer#onApplicationEvent(SpringApplicationEvent)}
 		 * 异步处理一些后台任务
-		 * @see BackgroundPConversionServiceInitializer#run() 初始化spring早期ConversionService {@linkplain DefaultFormattingConversionService#DefaultFormattingConversionService()}
+		 * @see ConversionServiceInitializer#run() 初始化spring早期ConversionService {@linkplain DefaultFormattingConversionService#DefaultFormattingConversionService()}
 		 * @see ValidationInitializer#run() 初始化javax.validation早期校验器 {@linkplain javax.validation.Validation}
 		 * @see MessageConverterInitializer#run() 初始化spring早期消息转换器 {@linkplain AllEncompassingFormHttpMessageConverter}
 		 * @see JacksonInitializer#run()  Jackson初始化程序 {@linkplain com.fasterxml.jackson.databind.ObjectMapper}
@@ -414,11 +426,13 @@ public class SpringApplication {
 			Banner printedBanner = printBanner(environment);
 			/**
 			 * 创建应用程序上下文{@link org.springframework.boot.web.servlet.context.AnnotationConfigServletWebServerApplicationContext}[策略方法],返回未刷新的上下文对象
-			 * @see BeanUtils#instantiateClass(Class) 反射创建实例(无参构造器)，同时逐一初始化其父类
-			 * {@link org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext#ServletWebServerApplicationContext()}
 			 * @see #setApplicationContextClass(Class) 可手动指定类型
 			 * {@link org.springframework.boot.web.reactive.context.AnnotationConfigReactiveWebServerApplicationContext}
 			 * {@link AnnotationConfigApplicationContext}
+			 *
+			 * 【一：父类初始化】
+			 * @see BeanUtils#instantiateClass(Class) 通过反射创建实例(无参构造器)，同时逐一初始化其父类
+			 * {@link org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext#ServletWebServerApplicationContext()}
 			 *
 			 *
 			 * 上下文刷新时[后面的步骤]，在此类中创建web服务器{@link WebServer}
@@ -429,11 +443,13 @@ public class SpringApplication {
 			 * {@link org.springframework.context.support.GenericApplicationContext#GenericApplicationContext()} 此构造方法中要初始化bean工厂{@link org.springframework.beans.factory.support.DefaultListableBeanFactory}
 			 * {@link DefaultListableBeanFactory}中几个常用的属性参数 {@value DefaultListableBeanFactory#beanDefinitionNames} {@value DefaultListableBeanFactory#beanDefinitionMap}
 			 * 初始化bean工厂的同时也会初始化其父类
-			 * {@link org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory#AbstractAutowireCapableBeanFactory()}此构造方法中会添加3个自动装配接口
+			 * {@link org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory#AbstractAutowireCapableBeanFactory()}此构造方法中会添加3个自动装配忽略接口
 			 * {@link org.springframework.beans.factory.support.AbstractBeanFactory#AbstractBeanFactory()}提供了接口{@link org.springframework.beans.factory.config.ConfigurableBeanFactory}SPI的完整功能
 			 * 它持有{@value org.springframework.beans.factory.support.AbstractBeanFactory#beanPostProcessors}Spring bean的后置处理器集合[Spring扩展属性之一]
 			 *
 			 * {@link org.springframework.beans.factory.support.FactoryBeanRegistrySupport#FactoryBeanRegistrySupport()} 工厂bean注册支持类
+			 * 	@see org.springframework.beans.factory.FactoryBean [Spring扩展点之三]
+			 *
 			 * {@link org.springframework.beans.factory.support.DefaultSingletonBeanRegistry#DefaultSingletonBeanRegistry()} Spring单例注册器(所有Spring单例
 			 * 均放在这里{@value org.springframework.beans.factory.support.DefaultSingletonBeanRegistry#singletonObjects})
 			 * {@link org.springframework.core.SimpleAliasRegistry}
@@ -441,10 +457,42 @@ public class SpringApplication {
 			 * {@link org.springframework.context.support.AbstractApplicationContext}
 			 * 它持有{@value org.springframework.context.support.AbstractApplicationContext#beanFactoryPostProcessors}Spring bean工厂后置处理器集合[Spring扩展属性之二]
 			 *
+			 * 【二：自己初始化部分】
+			 * @see org.springframework.boot.web.servlet.context.AnnotationConfigServletWebServerApplicationContext#AnnotationConfigServletWebServerApplicationContext()
+			 *
+			 * 1.初始化一个{@link AnnotatedBeanDefinitionReader}bean的注册器,会在bean工厂中注册几个相关的注解后处理器(不是实例化,仅仅是注册)
+			 * @see AnnotationConfigUtils#registerAnnotationConfigProcessors(BeanDefinitionRegistry)
+			 *
+			 * 	{@link org.springframework.context.annotation.ConfigurationClassPostProcessor}
+			 * 	处理{@link Configuration @Configuration}注解类
+			 *
+			 * 	{@link org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor}
+			 * 	默认情况下，处理{@link Autowired @Autowired} and {@link Value @Value}成员信息
+			 *
+			 * 	{@link org.springframework.context.annotation.CommonAnnotationBeanPostProcessor}
+			 * 	支持{@code javax.annotation}包下的Java注解，例如{@link javax.annotation.PreDestroy},{@link javax.annotation.PostConstruct},{@link javax.annotation.Resource}等
+			 *
+			 * 	{@link org.springframework.context.event.EventListenerMethodProcessor}
+			 * 	将{@link EventListener}注解的方法注册为{@link ApplicationListener}的实例
+			 *
+			 * 	{@link org.springframework.context.event.DefaultEventListenerFactory}
+			 * 	它是{@link EventListenerFactory}的默认实现类，完成对{@link EventListener}注解的支持功能
+			 *
+			 * 2.初始化一个bean definition扫描器，注册了两个默认过滤器
+			 * @see ClassPathScanningCandidateComponentProvider#registerDefaultFilters()
 			 */
 			context = createApplicationContext();
+			/**
+			 * 实例化Spring boot异常报告器{@link org.springframework.boot.diagnostics.FailureAnalyzers}
+			 * @see org.springframework.boot.diagnostics.FailureAnalyzers#analyzers {@link FailureAnalyzer}总共19个实现
+			 * @see org.springframework.boot.diagnostics.FailureAnalyzers#FailureAnalyzers(ConfigurableApplicationContext)
+			 */
 			exceptionReporters = getSpringFactoriesInstances(SpringBootExceptionReporter.class,
 					new Class[] { ConfigurableApplicationContext.class }, context);
+			/**
+			 * 上下文准备，做的事情比较多，详细见方法内部相关注释
+			 * @see #prepareContext(ConfigurableApplicationContext, ConfigurableEnvironment, SpringApplicationRunListeners, ApplicationArguments, Banner)
+			 */
 			prepareContext(context, environment, listeners, applicationArguments, printedBanner);
 			refreshContext(context);
 			afterRefresh(context, applicationArguments);
@@ -562,21 +610,88 @@ public class SpringApplication {
 
 	private void prepareContext(ConfigurableApplicationContext context, ConfigurableEnvironment environment,
 			SpringApplicationRunListeners listeners, ApplicationArguments applicationArguments, Banner printedBanner) {
+		/**
+		 * 将{@link org.springframework.boot.web.servlet.context.AnnotationConfigServletWebServerApplicationContext}应用环境设置为当前环境
+		 * @see #prepareEnvironment(SpringApplicationRunListeners, ApplicationArguments)
+		 */
 		context.setEnvironment(environment);
+		/**
+		 * 设置一个转换服务{@link ConfigurableListableBeanFactory#setConversionService(ConversionService)}用于属性值转换
+		 * @see ApplicationConversionService#ApplicationConversionService()
+		 */
 		postProcessApplicationContext(context);
+		/**
+		 * @see org.springframework.boot.autoconfigure.SharedMetadataReaderFactoryContextInitializer#initialize(ConfigurableApplicationContext)
+		 * 在上下文{@link ConfigurableApplicationContext}中添加一个bean工厂后置处理器
+		 * {@link org.springframework.boot.autoconfigure.SharedMetadataReaderFactoryContextInitializer.CachingMetadataReaderFactoryPostProcessor}
+		 *
+		 * 在debug模式下，记录{@link ConditionEvaluationReport}日志和报告的初始器
+		 * @see org.springframework.boot.autoconfigure.logging.ConditionEvaluationReportLoggingListener#initialize(ConfigurableApplicationContext)
+		 * 在上下文{@link ConfigurableApplicationContext}中添加一个监听器
+		 * {@link org.springframework.boot.autoconfigure.logging.ConditionEvaluationReportLoggingListener.ConditionEvaluationReportListener}
+		 *
+		 * 报告常见配置错误警告的初始器
+		 * @see org.springframework.boot.context.ConfigurationWarningsApplicationContextInitializer#initialize(ConfigurableApplicationContext)
+		 * 在上下文{@link ConfigurableApplicationContext}中添加一个bean工厂后置处理器
+		 * {@link org.springframework.boot.context.ConfigurationWarningsApplicationContextInitializer.ConfigurationWarningsPostProcessor}
+		 *
+		 * @see org.springframework.boot.context.ContextIdApplicationContextInitializer#initialize(ConfigurableApplicationContext)
+		 * 在bean工厂中{@link ConfigurableListableBeanFactory}中添加一个单例实例
+		 * {@link org.springframework.boot.context.ContextIdApplicationContextInitializer.ContextId}
+		 *
+		 * @see org.springframework.boot.context.config.DelegatingApplicationContextInitializer#initialize(ConfigurableApplicationContext)
+		 * 委托在环境变量中指定{@value context.initializer.classes}属性的{@link ApplicationContextInitializer}初始器
+		 *
+		 * @see org.springframework.boot.rsocket.context.RSocketPortInfoApplicationContextInitializer#initialize(ConfigurableApplicationContext)
+		 * 在上下文{@link ConfigurableApplicationContext}中添加一个监听器
+		 * {@link org.springframework.boot.rsocket.context.RSocketPortInfoApplicationContextInitializer.Listener}
+		 *
+		 * @see org.springframework.boot.web.context.ServerPortInfoApplicationContextInitializer#initialize(ConfigurableApplicationContext)
+		 * 在上下文{@link ConfigurableApplicationContext}中添加一个监听器(添加自身)
+		 * {@link org.springframework.boot.web.context.ServerPortInfoApplicationContextInitializer}
+		 *
+		 */
 		applyInitializers(context);
+		/**
+		 * 执行两个监听器事件
+		 * {@link org.springframework.boot.autoconfigure.BackgroundPreinitializer#onApplicationEvent(SpringApplicationEvent)}
+		 * 无事件执行
+		 *
+		 * {@link org.springframework.boot.context.config.DelegatingApplicationListener#onApplicationEvent(ApplicationEvent)}
+		 * 无事件执行
+		 */
 		listeners.contextPrepared(context);
 		if (this.logStartupInfo) {
+			/**
+			 * 打印启动日志
+			 * @see StartupInfoLogger#getStartingMessage()
+			 * @see StartupInfoLogger#getRunningMessage()
+			 */
 			logStartupInfo(context.getParent() == null);
+			/**
+			 * 打印激活配置文件信息
+			 * @see #logStartupProfileInfo(ConfigurableApplicationContext)
+			 */
 			logStartupProfileInfo(context);
 		}
 		// Add boot specific singleton beans
 		ConfigurableListableBeanFactory beanFactory = context.getBeanFactory();
+		/**
+		 * 添加一个ApplicationArguments单例对象
+		 * @see DefaultSingletonBeanRegistry#singletonObjects
+		 * @see DefaultListableBeanFactory#registerSingleton(String, Object)
+		 * @see DefaultSingletonBeanRegistry#registerSingleton(String, Object)
+		 */
 		beanFactory.registerSingleton("springApplicationArguments", applicationArguments);
 		if (printedBanner != null) {
+			//添加一个Banner单例对象
 			beanFactory.registerSingleton("springBootBanner", printedBanner);
 		}
 		if (beanFactory instanceof DefaultListableBeanFactory) {
+			/**
+			 * 当名称一样时，是否覆盖之前的bean definition,默认值是true,否则会抛出异常
+			 * @see DefaultListableBeanFactory#setAllowBeanDefinitionOverriding(boolean)
+			 */
 			((DefaultListableBeanFactory) beanFactory)
 					.setAllowBeanDefinitionOverriding(this.allowBeanDefinitionOverriding);
 		}
@@ -584,9 +699,49 @@ public class SpringApplication {
 			context.addBeanFactoryPostProcessor(new LazyInitializationBeanFactoryPostProcessor());
 		}
 		// Load the sources
+		/**
+		 * cn.yaolianhua.boot.DemoBootApplication
+		 */
 		Set<Object> sources = getAllSources();
 		Assert.notEmpty(sources, "Sources must not be empty");
+		/**
+		 * 1. 创建一个{@link BeanDefinitionLoader}
+		 * 1.1 初始化了一个{@link AnnotatedBeanDefinitionReader}
+		 * 1.2 初始化一个{@link XmlBeanDefinitionReader}
+		 * 1.3 初始化一个{@link ClassPathBeanDefinitionScanner}
+		 * 详细操作记录在这里
+		 * @see AnnotationConfigServletWebServerApplicationContext#AnnotationConfigServletWebServerApplicationContext()
+		 * 1.4 添加一个{@param sources}排除过滤器到{@link ClassPathBeanDefinitionScanner}
+		 *
+		 * 2. 把cn.yaolianhua.boot.DemoBootApplication注册到上下文的bean工厂{@link DefaultListableBeanFactory}[只是注册bean的元数据信息,不会创建实例]
+		 * @see AnnotatedBeanDefinitionReader#register(Class[])
+		 * @see AnnotationConfigUtils#processCommonDefinitionAnnotations(AnnotatedBeanDefinition) 处理一些元数据信息，包含相关注解
+		 * @see DefaultListableBeanFactory#registerBeanDefinition(String, BeanDefinition)
+		 *
+		 */
 		load(context, sources.toArray(new Object[0]));
+		/**
+		 * 1. 将Spring工厂监听器实例(11个){@link #listeners}添加到了上下文{@link AnnotationConfigServletWebServerApplicationContext}中[至此，上下文中监听器数量为14个
+		 * (包括{@link #applyInitializers(ConfigurableApplicationContext)}新增的3个)]
+		 * 2. 将{@link AnnotationConfigServletWebServerApplicationContext}传给实现了{@link ApplicationContextAware}接口的{@link org.springframework.boot.builder.ParentContextCloserApplicationListener}监听器中
+		 * 3. 调用以下监听器事件
+		 *
+		 * {@link org.springframework.boot.cloud.CloudFoundryVcapEnvironmentPostProcessor#onApplicationEvent(ApplicationPreparedEvent)}
+		 * 日志切换
+		 *
+		 * {@link org.springframework.boot.context.config.ConfigFileApplicationListener#onApplicationEvent(ApplicationEvent)}
+		 * 添加一个bean工厂后置处理器{@link ConfigFileApplicationListener.PropertySourceOrderingPostProcessor}
+		 *
+		 * {@link org.springframework.boot.context.logging.LoggingApplicationListener#onApplicationEvent(ApplicationEvent)}
+		 * 将系统日志对象{@link org.springframework.boot.logging.LoggingSystem}加入单例池
+		 * 将系统日志组{@link org.springframework.boot.logging.LoggerGroups}加入单例池(web,sql)
+		 *
+		 * {@link org.springframework.boot.autoconfigure.BackgroundPreinitializer#onApplicationEvent(SpringApplicationEvent)}
+		 * 无事件
+		 *
+		 * {@link org.springframework.boot.context.config.DelegatingApplicationListener#onApplicationEvent(ApplicationEvent)}
+		 * 无事件
+		 */
 		listeners.contextLoaded(context);
 	}
 

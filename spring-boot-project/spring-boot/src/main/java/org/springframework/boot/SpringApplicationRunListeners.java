@@ -22,6 +22,7 @@ import java.util.List;
 
 import org.apache.commons.logging.Log;
 
+import org.springframework.boot.context.event.ApplicationPreparedEvent;
 import org.springframework.boot.context.event.ApplicationStartingEvent;
 import org.springframework.boot.context.event.EventPublishingRunListener;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -55,7 +56,7 @@ class SpringApplicationRunListeners {
 	}
 
 	/**
-	 * 应用程序环环境准备事件 {@link org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent}
+	 * 应用程序环境准备事件 {@link org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent}
 	 * @see EventPublishingRunListener#environmentPrepared(ConfigurableEnvironment)
 	 */
 	void environmentPrepared(ConfigurableEnvironment environment) {
@@ -64,12 +65,21 @@ class SpringApplicationRunListeners {
 		}
 	}
 
+	/**
+	 * 应用程序上下文准备(初始化)事件{@link org.springframework.boot.context.event.ApplicationContextInitializedEvent}
+	 * @see EventPublishingRunListener#contextPrepared(ConfigurableApplicationContext)
+	 */
 	void contextPrepared(ConfigurableApplicationContext context) {
 		for (SpringApplicationRunListener listener : this.listeners) {
 			listener.contextPrepared(context);
 		}
 	}
 
+	/**
+	 * 应用程序加载[准备]事件{@link ApplicationPreparedEvent}
+	 * @see EventPublishingRunListener#contextLoaded(ConfigurableApplicationContext)
+	 * @param context 应用程序上下文
+	 */
 	void contextLoaded(ConfigurableApplicationContext context) {
 		for (SpringApplicationRunListener listener : this.listeners) {
 			listener.contextLoaded(context);

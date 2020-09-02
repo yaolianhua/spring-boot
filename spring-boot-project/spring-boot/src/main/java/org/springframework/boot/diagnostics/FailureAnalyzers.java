@@ -25,9 +25,11 @@ import org.apache.commons.logging.LogFactory;
 
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.BeanFactoryAware;
+import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.boot.SpringBootExceptionReporter;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.EnvironmentAware;
+import org.springframework.context.annotation.ClassPathBeanDefinitionScanner;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.core.io.support.SpringFactoriesLoader;
 import org.springframework.core.log.LogMessage;
@@ -63,7 +65,43 @@ final class FailureAnalyzers implements SpringBootExceptionReporter {
 	FailureAnalyzers(ConfigurableApplicationContext context, ClassLoader classLoader) {
 		Assert.notNull(context, "Context must not be null");
 		this.classLoader = (classLoader != null) ? classLoader : context.getClassLoader();
+		/**
+		 * @see org.springframework.boot.autoconfigure.diagnostics.analyzer.NoSuchBeanDefinitionFailureAnalyzer
+		 * @see org.springframework.boot.autoconfigure.flyway.FlywayMigrationScriptMissingFailureAnalyzer
+		 * @see org.springframework.boot.autoconfigure.jdbc.DataSourceBeanCreationFailureAnalyzer
+		 * @see org.springframework.boot.autoconfigure.jdbc.HikariDriverConfigurationFailureAnalyzer
+		 * @see org.springframework.boot.autoconfigure.r2dbc.ConnectionFactoryBeanCreationFailureAnalyzer
+		 * @see org.springframework.boot.autoconfigure.session.NonUniqueSessionRepositoryFailureAnalyzer
+		 *
+		 * @see org.springframework.boot.diagnostics.analyzer.BeanCurrentlyInCreationFailureAnalyzer
+		 * @see org.springframework.boot.diagnostics.analyzer.BeanDefinitionOverrideFailureAnalyzer
+		 * @see org.springframework.boot.diagnostics.analyzer.BeanNotOfRequiredTypeFailureAnalyzer
+		 * @see org.springframework.boot.diagnostics.analyzer.BindFailureAnalyzer
+		 * @see org.springframework.boot.diagnostics.analyzer.BindValidationFailureAnalyzer
+		 * @see org.springframework.boot.diagnostics.analyzer.UnboundConfigurationPropertyFailureAnalyzer
+		 * @see org.springframework.boot.diagnostics.analyzer.ConnectorStartFailureAnalyzer
+		 * @see org.springframework.boot.diagnostics.analyzer.NoSuchMethodFailureAnalyzer
+		 * @see org.springframework.boot.diagnostics.analyzer.NoUniqueBeanDefinitionFailureAnalyzer
+		 * @see org.springframework.boot.diagnostics.analyzer.PortInUseFailureAnalyzer
+		 * @see org.springframework.boot.diagnostics.analyzer.ValidationExceptionFailureAnalyzer
+		 * @see org.springframework.boot.diagnostics.analyzer.InvalidConfigurationPropertyNameFailureAnalyzer
+		 * @see org.springframework.boot.diagnostics.analyzer.InvalidConfigurationPropertyValueFailureAnalyzer
+		 */
 		this.analyzers = loadFailureAnalyzers(this.classLoader);
+		/**
+		 * 给实现了{@link BeanFactoryAware}接口的{@link FailureAnalyzer}设置bean工厂{@link org.springframework.beans.factory.support.DefaultListableBeanFactory}
+		 * @see org.springframework.boot.autoconfigure.diagnostics.analyzer.NoSuchBeanDefinitionFailureAnalyzer
+		 * @see org.springframework.boot.diagnostics.analyzer.NoUniqueBeanDefinitionFailureAnalyzer
+		 *
+		 * 给实现了{@link EnvironmentAware}接口的{@link FailureAnalyzer}设置应用环境{@link org.springframework.core.env.ConfigurableEnvironment}
+		 * 当前应用环境是新创建的{@link org.springframework.core.env.StandardEnvironment}
+		 * @see ClassPathBeanDefinitionScanner#getOrCreateEnvironment(BeanDefinitionRegistry)
+		 * @see ClassPathBeanDefinitionScanner#getEnvironment()
+		 *
+		 * @see org.springframework.boot.autoconfigure.jdbc.DataSourceBeanCreationFailureAnalyzer
+		 * @see org.springframework.boot.autoconfigure.r2dbc.ConnectionFactoryBeanCreationFailureAnalyzer
+		 * @see org.springframework.boot.diagnostics.analyzer.InvalidConfigurationPropertyValueFailureAnalyzer
+		 */
 		prepareFailureAnalyzers(this.analyzers, context);
 	}
 

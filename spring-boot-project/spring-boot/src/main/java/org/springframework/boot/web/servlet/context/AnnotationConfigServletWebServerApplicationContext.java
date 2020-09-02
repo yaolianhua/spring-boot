@@ -20,15 +20,16 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
+import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.BeanNameGenerator;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
-import org.springframework.context.annotation.AnnotatedBeanDefinitionReader;
-import org.springframework.context.annotation.AnnotationConfigRegistry;
-import org.springframework.context.annotation.AnnotationConfigUtils;
-import org.springframework.context.annotation.AnnotationScopeMetadataResolver;
-import org.springframework.context.annotation.ClassPathBeanDefinitionScanner;
-import org.springframework.context.annotation.ScopeMetadataResolver;
+import org.springframework.context.ApplicationListener;
+import org.springframework.context.annotation.*;
+import org.springframework.context.event.EventListener;
+import org.springframework.context.event.EventListenerFactory;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
@@ -70,7 +71,30 @@ public class AnnotationConfigServletWebServerApplicationContext extends ServletW
 	 * {@linkplain #refresh refreshed}.
 	 */
 	public AnnotationConfigServletWebServerApplicationContext() {
+		/**
+		 * 初始化一个{@link AnnotatedBeanDefinitionReader}bean的注册器,会在bean工厂中注册几个相关的注解后处理器(不是实例化,仅仅是注册)
+		 * @see AnnotationConfigUtils#registerAnnotationConfigProcessors(BeanDefinitionRegistry)
+		 *
+		 * {@link org.springframework.context.annotation.ConfigurationClassPostProcessor}
+		 * 处理{@link Configuration @Configuration}注解类
+		 *
+		 * {@link org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor}
+		 * 默认情况下，处理{@link Autowired @Autowired} and {@link Value @Value}成员信息
+		 *
+		 * {@link org.springframework.context.annotation.CommonAnnotationBeanPostProcessor}
+		 * 支持{@code javax.annotation}包下的Java注解，例如{@link javax.annotation.PreDestroy},{@link javax.annotation.PostConstruct},{@link javax.annotation.Resource}等
+		 *
+		 * {@link org.springframework.context.event.EventListenerMethodProcessor}
+		 * 将{@link EventListener}注解的方法注册为{@link ApplicationListener}的实例
+		 *
+		 * {@link org.springframework.context.event.DefaultEventListenerFactory}
+		 * 它是{@link EventListenerFactory}的默认实现类，完成对{@link EventListener}注解的支持功能
+		 */
 		this.reader = new AnnotatedBeanDefinitionReader(this);
+		/**
+		 * 初始化一个bean definition扫描器，注册了两个默认过滤器
+		 * @see ClassPathScanningCandidateComponentProvider#registerDefaultFilters()
+		 */
 		this.scanner = new ClassPathBeanDefinitionScanner(this);
 	}
 
